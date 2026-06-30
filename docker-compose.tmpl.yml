@@ -1,0 +1,58 @@
+version: "3.9"
+services:
+  {{.Name}}:
+{{if .Swarm}}
+    image: {{.Name}}:latest
+{{else}}
+    build: .
+{{end}}
+    networks:
+      - traefik-public
+
+{{if .Swarm}}
+    deploy:
+      replicas: ${REPLICAS:-3}
+      resources:
+        limits:
+          cpus: "${CPU_LIMIT:-0.5}"
+          memory: "${MEMORY_LIMIT:-512M}"
+        reservations:
+          cpus: "${CPU_RESERVATION:-0.25}"
+          memory: "${MEMORY_RESERVATION:-256M}"
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.http.routers.{{.Name}}.rule=Host(`{{.Domain}}`)"
+        - "traefik.http.routers.{{.Name}}.entrypoints=web"
+        - "traefik.http.services.{{.Name}}.loadbalancer.server.port={{.ToPort}}"
+{{else}}
+    restart: always
+    ports:
+      - "{{.Port}}:{{.ToPort}}"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.{{.Name}}.rule=Host(`{{.Domain}}`)"
+      - "traefik.http.routers.{{.Name}}.entrypoints=web"
+      - "traefik.http.services.{{.Name}}.loadbalancer.server.port={{.ToPort}}"
+{{end}}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  traefik-public:
+    external: true
